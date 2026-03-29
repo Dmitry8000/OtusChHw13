@@ -1,0 +1,34 @@
+# clickhouse-backup: сохранение бэкапов в S3 (MinIO)
+# Документация: https://github.com/Altinity/clickhouse-backup
+
+general:
+  remote_storage: s3
+  backups_to_keep_local: 1
+  backups_to_keep_remote: 3
+
+clickhouse:
+  username: default
+  password: "hw13_local"
+  host: clickhouse
+  port: 9000
+  skip_tables:
+    - system.*
+    - INFORMATION_SCHEMA.*
+
+s3:
+  endpoint: http://minio:9000
+  bucket: clickhouse-backup
+  # Архивы бэкапов (create/upload)
+  path: backups
+  # Отдельный префикс для копирования данных с S3-дисков MergeTree (storage_policy с s3).
+  # Обязателен, если в ClickHouse есть таблицы на object storage; не должен совпадать с path и не быть его префиксом.
+  object_disk_path: object-disk-snapshots
+  access_key: minioadmin
+  secret_key: minioadmin
+  region: us-east-1
+  force_path_style: true
+  disable_ssl: true
+  disable_cert_verification: false
+  acl: ""
+  compression_level: 1
+  compression_format: tar

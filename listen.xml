@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<!-- Слушать на всех IPv4-интерфейсах контейнера — иначе с хоста (localhost:8123) не достучаться.
+     Не добавлять listen_host :: — в Docker Desktop IPv6 часто отключён, будет ошибка 210 при bind. -->
+<clickhouse>
+    <listen_host>0.0.0.0</listen_host>
+</clickhouse>
