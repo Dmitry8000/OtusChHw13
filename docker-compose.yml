@@ -1,0 +1,82 @@
+# ДЗ 13: Storage Policy и резервное копирование
+# MinIO (S3), ClickHouse, clickhouse-backup
+
+services:
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    ports:
+      - "9002:9000"   # S3 API (внешний 9002, внутри сети minio:9000)
+      - "9001:9001"   # Web Console
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - hw13net
+    # После старта подождите ~10 сек перед первым бэкапом (создание бакета)
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    container_name: clickhouse_hw13
+    hostname: clickhouse
+    ports:
+      - "9000:9000"
+      - "8123:8123"
+    environment:
+      # Без пароля у user default в образе отключается сетевой доступ — init-скрипт
+      # не может подключиться по TCP и падает с "ClickHouse init process timeout".
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: hw13_local
+      CLICKHOUSE_DB: default
+      CLICKHOUSE_INIT_TIMEOUT: 180
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - ./config/clickhouse/config.d:/etc/clickhouse-server/config.d
+    networks:
+      - hw13net
+    depends_on:
+      minio:
+        condition: service_started
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+
+  mc:
+    image: minio/mc:latest
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["mc alias set minio http://minio:9000 minioadmin minioadmin && mc mb minio/clickhouse-data --ignore-existing && mc mb minio/clickhouse-backup --ignore-existing && echo Buckets OK"]
+    networks:
+      - hw13net
+    depends_on:
+      - minio
+    profiles:
+      - init
+
+  clickhouse-backup:
+    image: altinity/clickhouse-backup:latest
+    container_name: clickhouse_backup_hw13
+    hostname: clickhouse-backup
+    volumes:
+      # Тот же том, что у clickhouse: локальные бэкапы пишутся в /var/lib/clickhouse/backup/
+      # Без этого каждый `compose run` — новый контейнер без файлов после `create`.
+      - clickhouse_data:/var/lib/clickhouse
+      - ./config/clickhouse-backup/config.yml:/etc/clickhouse-backup/config.yml:ro
+    environment:
+      CLICKHOUSE_HOST: clickhouse
+      CLICKHOUSE_PORT: 9000
+    networks:
+      - hw13net
+    depends_on:
+      - clickhouse
+
+volumes:
+  minio_data:
+  clickhouse_data:
+
+networks:
+  hw13net:
+    driver: bridge
